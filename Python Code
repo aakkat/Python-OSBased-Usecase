@@ -1,0 +1,240 @@
+#!/usr/bin/python3
+import os
+import paramiko
+import re
+os.system("tput setaf 4")
+print("\t\t\t\tWelcome to Julius OS Audit Menu")
+os.system("tput setaf 7")
+print("\t\t\t\t---------------------------------------")
+
+print("Please enter detail from below opco's")
+print("GN")
+print("GW")
+print("Enter the opco name:", end=" ")
+location = input()
+
+my_id = 'root'
+downloadloc = ("/opt/")
+ssh = paramiko.SSHClient()
+ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+out_file = open(r'{0}connection_results.txt'.format(downloadloc), 'r')
+
+def ipdetail(host_file,opco):
+       cmd = "cat {0}conakry_ip.txt".format(downloadloc)
+       os.system(cmd)
+
+def ipdetail(host_file,opco):
+       cmd = "cat {0}bissau_ip.txt".format(downloadloc)
+       os.system(cmd)
+
+def hostcll(host_file,opco):
+    for host in host_file:
+        host=host.strip()
+        opco=opco.strip()
+        print(host)
+        try:
+           ssh.connect(host,username=my_id)
+           sftp_client=ssh.open_sftp()
+           sftp_client.chdir(downloadloc + "temp")
+           try:
+                os.makedirs(downloadloc +  "/" + opco + "/" + host + "/" + "prob")
+                os.makedirs(downloadloc +  "/" + opco + "/" + host + "/" + "noprob")
+           except:
+                print("directory already created")
+           hostip = os.path.join(downloadloc +  "/" + opco + "/" + host + "/" + "prob" + "/")
+           hostip1 = os.path.join(downloadloc +  "/" + opco + "/" + host + "/" + "noprob" + "/")
+           sftp_client.get('sshd_config','{0}sshd_config'.format(hostip))
+           sftp_client.get('login.defs','{0}login.defs'.format(hostip))
+           sftp_client.get('system-auth-ac','{0}system-auth-ac'.format(hostip))
+           cmd = "cp -p {0}* {1}".format(hostip,hostip1)
+           os.system(cmd)
+        except:
+           out_file.write("Could not connect to" + host + "\n")
+ssh.close()
+out_file.close()
+
+def rootdetail(opco,ipinput,path):
+   with open(r'{0}sshd_config'.format(path),"r+") as myfile:
+      for line in myfile.readlines():
+          if re.match(r'PermitRootLogin', line):
+              line = line.split(" ")[1]
+              space = line.rstrip('\n')
+              if space == "yes":
+                  print("root is enabled")
+              else:
+                  print("Audit is Ok,No deviation observed")
+   myfile.close()
+
+def passmax(opco,ipinput,path):
+
+    p=open(r'{0}login.defs'.format(path),"r+")
+    for line in p.readlines():
+        if re.match('PASS_MAX_DAYS',line):
+           space = line.split()[1]
+           if int(space) != 90:
+              print("password max days must be 90 days as currently it is {},so please update it".format(space))
+           else:
+              print("Audit is Ok,No deviation observed")
+
+def passmin(opco,ipinput,path):
+
+    p=open(r'{0}login.defs'.format(path),"r+")
+    for line in p.readlines():
+        if re.match('PASS_MIN_DAYS',line):
+           space = line.split()[1]
+           if int(space) != 7:
+               print("password min days must be 7 days as currently it is {},so please update it".format(space))
+           else:
+               print("Audit is Ok,No deviation observed")
+
+def warnage(opco,ipinput,path):
+
+   p=open(r'{0}login.defs'.format(path),"r+")
+   for line in p.readlines():
+       if re.match('PASS_WARN_AGE',line):
+          space = line.split()[1]
+          if int(space) != 7:
+             print("password warn days must be 7 days as currently it is {},so please update it".format(space))
+          else:
+             print("Audit is Ok,No deviation observed")
+
+def minlen(opco,ipinput,path):
+
+   p=open(r'{0}login.defs'.format(path),"r+")
+   for line in p.readlines():
+      if re.match('PASS_MIN_LEN',line):
+         space = line.split()[1]
+         if int(space) != 14:
+            print("password warn days must be 14 days as currently it is {},so please update it".format(space))
+         else:
+            print("Audit is Ok,No deviation observed")
+def complexy(opco,ipinput,path):
+    exp = r'(\w+)=(\S+)'
+
+    with open('{0}system-auth-ac'.format(path), 'r') as f:
+       for line in f.readlines():
+          sline=line.strip()
+          if len(sline):
+             if not line.startswith('#'):
+                tokens = re.findall(exp,sline)
+                for match in tokens:
+                    key, value = match
+                    print(key,"=",value)
+
+
+def defaultchge(hostip1,opco,ipinput):
+   with open(r'{0}sshd_config'.format(hostip1),'r+') as file:
+        pattern = file.read()
+        pattern = re.sub('PermitRootLogin yes','PermitRootLogin no', pattern)
+        file.seek(0)
+        file.write(pattern)
+        print("permitrootlogin")
+
+   s = open('{0}login.defs'.format(hostip1),'r').read()
+   s = re.sub(r"^PASS_MAX_DAYS[^\t]*.*$", "PASS_MAX_DAYS\t90", s, 0, re.M)
+   s = re.sub(r"^PASS_MIN_DAYS[^\t]*.*$", "PASS_MIN_DAYS\t7", s, 0, re.M)
+   s = re.sub(r"^PASS_MIN_LEN[^\t]*.*$", "PASS_MIN_LEN\t14", s, 0, re.M)
+   s = re.sub(r"^PASS_WARN_AGE[^\t]*.*$", "PASS_WARN_AGE\t7", s, 0, re.M)
+   open('{0}login.defs'.format(hostip1), 'w').write(s)
+
+   exp = r'(\w+)=(\S+)'
+   lookup = {
+            "retry"     : '-1',
+            "difok"     : '5',
+            "ocredit"   : '-1',
+            "dcredit"   : '-1',
+            "ucredit"   : '-1',
+            "lcredit"   : '-1',
+            "maxrepeat" : '3',
+            "remember"  : '24',
+            "minlen"    : '14' }
+
+
+   with open(r'{0}system-auth-ac'.format(hostip1), 'r') as f,open(r'{0}system-auth-actmp'.format(hostip1),'w') as o:
+        for line in f:
+            sline=line.strip()
+            if len(sline):
+                if not line.startswith('#'):
+                    tokens = re.findall(exp,sline)
+                    for match in tokens:
+                        key, value = match
+                        if key in lookup:
+                            line=re.sub(f'{key}=\\S+', f'{key}={lookup[key]}', line)
+            o.write(line)
+   cmd = "mv {0}system-auth-actmp {0}system-auth-ac".format(hostip1)
+   os.system(cmd)
+   sfput(opco,ipinput)
+
+def sfput(opco,ipinput):
+    ssh.connect(ipinput,username=my_id)
+    sftp_client=ssh.open_sftp()
+    sftp_client.chdir(downloadloc + "temp")
+
+    hostip1 = os.path.join(downloadloc + opco + "/" + ipinput + "/" + "noprob/")
+    sftp_client.put('{0}sshd_config'.format(hostip1),'sshd_config')
+    sftp_client.put('{0}login.defs'.format(hostip1),'login.defs')
+    sftp_client.put('{0}system-auth-ac'.format(hostip1),'system-auth-ac')
+
+    sftp_client.close()
+    ssh.close()
+
+#root = Root()
+def menu(host_file,opco):
+  print("Enter {0} IP to get detail:".format(opco),end=" ")
+  ipinput = input()
+  path = os.path.join(downloadloc + opco + "/" + ipinput + "/" + "prob/")
+  hostip1 = os.path.join(downloadloc + opco + "/" + ipinput + "/" + "noprob/")
+  print("you are currently in: {0}".format(path))
+
+  while True:
+     print("Press 1: root login detail")
+     print("Press 2: Password Max Days detail ")
+     print("Press 3: Password Min Days detail")
+     print("Press 4: Password Warning Age detail")
+     print("Press 5: Password Min Length")
+     print("Press 6: History Parameter")
+     print("Press 7: Password complexity detail")
+     print("Press 8: Changing all parameter to default setting")
+     print("Press 9: To check detail of another IP")
+     print("Press 10: Exit")
+
+     print("Enter your choice:" , end=" ")
+     ch=input()
+
+     if int(ch) == 1:
+        rootdetail(opco,ipinput,path)
+     elif int(ch) == 2:
+        passmax(opco,ipinput,path)
+     elif int(ch) == 3:
+        passmin(opco,ipinput,path)
+     elif int(ch) == 4:
+        warnage(opco,ipinput,path)
+     elif int(ch) == 5:
+        minlen(opco,ipinput,path)
+     elif int(ch) == 6:
+        print("Detail is already provided in Password complexity,So,Please refer it")
+     elif int(ch) == 7:
+        complexy(opco,ipinput,path)
+     elif int(ch) == 8:
+        defaultchge(hostip1,opco,ipinput)
+     elif int(ch) == 9:
+        ipdetail(host_file,opco)
+        menu(host_file,opco)
+     elif int(ch) == 10:
+        exit()
+     else:
+        print("wrong option chosen")
+     input("Enter to continue..")
+     os.system("clear")
+
+if location == "GN":
+   with open(r'{0}conakry_ip.txt'.format(downloadloc), 'r+') as host_file:
+      opco = location
+      hostcll(host_file,opco)
+      menu(host_file,opco)
+
+elif location == "GW":
+   with open(r'{0}bissau_ip.txt'.format(downloadloc), 'r+') as host_file:
+      opco = location
+      hostcll(host_file,opco)
+      menu(host_file,opco)
